@@ -1,7 +1,11 @@
 
 body {
     font-family: 'Open Sans', sans-serif; /* Default font for the body */
+    margin:0;
+    background-color: #090909;
+    
 }
+html, body {margin: 0; height: 100%; overflow: hidden}
 h1{
     font-family: 'Geist', sans-serif; /* Use Geist for headers */
     font-weight: 700; /* Example weight */
@@ -14,7 +18,7 @@ h2, h3 {
     font-weight: 700; /* Example weight */
 }
 p {
-    font-family: 'Open Sans', sans-serif;
+    font-family: 'Geist', sans-serif;
     font-weight: 300; /* Use light weight for paragraphs */
     color: white;
 }
@@ -22,8 +26,15 @@ p {
     
 .navbar{
     z-index: 1000;
-    padding-left: 15px;
+    background-color: transparent;
+    color: #ffffff;
 }
+.name-row{
+    padding-bottom: 0%;
+}
+.slick-slide .inner {
+    margin: 0 15px;
+  }
 
 .left-half{
     background-color: #121212;
@@ -34,8 +45,25 @@ p {
     text-align: center;
     justify-content: center;
     padding-right: 0%;
-    padding-bottom: 10%;
+    padding-bottom: 0%;
     animation: 3s infinite ease-in-out;
+    overflow-y: hidden;
+    overflow-x: hidden;
+}
+.container-fluid{
+    overflow-y: hidden;
+}
+
+.top-container{
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    text-align: justify;
+    height: 2%;
+    color:#aa64d3;
+    padding-top: 22%;
+    overflow-y: scroll;
+    
 }
 @keyframes slide {
     0%, 100%{ transform: translate(0);}
@@ -82,10 +110,11 @@ button {
     font-size: 17px;
     border-radius: 500px;
     overflow: hidden;
-    background: #66ff66;
+    background: #BB86Fc;
     color: #121212;
    }
-   
+
+
 button span {
     position: relative;
     z-index: 10;
@@ -119,3 +148,125 @@ button:hover::before {
     transform: translate3d(100%, 0, 0);
    }
    
+.card{
+    background-color: #141414;
+}
+.card-body{
+    background-color: #282828;
+    color:#ffffff;
+}
+
+
+
+.tech-slideshow {
+    border-radius: 25px;
+    height: 100px;
+    max-width: 100%;
+    margin: 0 auto;
+    position: relative;
+    overflow: hidden;
+    border:0px solid black;
+    font-size:0; /* THIS IS A HACK TO REMOVE THE "WHITESPACE" BETWEEN IMAGES.
+                    YOU COULD ALSO PUT ALL OF THE IMAGES ON THE SAME LINE
+                    (eg: <img src=""><img src=""><img src=""> 
+                    with no spaces or line-breaks),
+                    BUT THAT MAKES THE CODE LESS READABLE SO I'M DOING THIS
+                    FOR THE SAKE OF CREATING THIS EXAMPLE FOR YOU */
+  }
+  
+  .mover-1 {
+    height: 175px;
+    width: max-content;
+    
+    position: absolute;
+    overflow-x:hidden;
+    top: 0;
+    left: 0;
+  
+    animation: moveSlideshow 10s linear infinite;
+  }
+  
+  .mover-1 img {
+    display:inline-block;
+    vertical-align:middle;
+    width:75px;
+    margin:0;
+  }
+  
+  @keyframes moveSlideshow {
+    100% { 
+      transform: translateX(-525px);  
+    }
+  }
+
+  /* From Uiverse.io by Pradeepsaranbishnoi */ 
+.social-links,.flex-center {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .social-btn {
+    cursor: pointer;
+    height: 50px;
+    width: 50px;
+    font-family: 'Titillium Web', sans-serif;
+    color: #333;
+    border-radius: 10px;
+    box-shadow: 0px 10px 10px rgba(0,0,0,0.1);
+    background: white;
+    margin: 5px;
+    transition: 0.3s;
+    justify-content: center;
+    padding: 0 12px;
+  }
+  
+  .social-btn svg {
+    height: 24px;
+    width: 24px;
+  }
+  
+  .social-btn span {
+    width: 0px;
+    overflow: hidden;
+    transition: 0.3s;
+    text-align: center;
+    margin-left: 5px;
+    
+  }
+  
+  .social-btn:hover {
+    width: 150px;
+    border-radius: 5px;
+  }
+  
+  .social-btn:hover span {
+    padding: 2px;
+    width: fit-content;
+  }
+  .social-btn img {
+    margin-left: -2px;
+  }
+  
+  #twitter svg {
+    fill: #1da1f2;
+    
+  }
+  
+  #linkedin svg {
+    fill: #0e76a8;
+  }
+  
+  #github {
+    fill: #333;
+  }
+  .glow {
+    position: absolute;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.3);
+    filter: blur(10px);
+    pointer-events: none;
+    transition: transform 0.1s linear; 
+  }

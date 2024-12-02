@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Glow Behind Cursor</title>
+  <style>
+    body {
+      background-color: #222;
+    }
+
+    .glow {
+      position: absolute;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background-color: rgba(255, 255, 255, 0.3);
+      filter: blur(10px);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <script>
+    const glow = document.createElement('div');
+    glow.classList.add('glow');
+    document.body.appendChild(glow);
+
+    document.addEventListener('mousemove', (e) => {
+      glow.style.left = e.clientX - 25 + 'px';
+      glow.style.top = e.clientY - 25 + 'px';
+    });
+  </script>
+</body>
+</html>
