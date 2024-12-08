@@ -6,6 +6,7 @@ body {
     overflow-x: hidden;
     
 }
+html, body {margin: 0; height: auto; overflow: hidden;}
 .error-container {
   text-align: center;
   padding: 50px;
@@ -33,7 +34,7 @@ body {
   color: #d3d3d3;
 }
 
-html, body {margin: 0; height: 100%; overflow: hidden;}
+
 h1{
     font-family: 'Geist', sans-serif; /* Use Geist for headers */
     font-weight: 700; /* Example weight */
@@ -146,7 +147,7 @@ p {
     
 }
 .right-half{
-    overflow-y: auto;
+    overflow-y: scroll;
     height:100vh;
     overflow-x: hidden;
 }
@@ -220,7 +221,7 @@ button:hover::before {
    
 .card{
     background-color: #141414;
-    box-shadow: 1px 8px 20px  #392e47; 
+    box-shadow: 1px 8px 20px  #686769; 
 }
 .card-body{
     background-color: #282828;
