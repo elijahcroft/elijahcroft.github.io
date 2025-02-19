@@ -150,6 +150,8 @@ p {
     overflow-y: scroll;
     height:100vh;
     overflow-x: hidden;
+    margin-left: 40px;
+    margin-top: -20px;
 }
 .name{
     padding-top: 20%;
