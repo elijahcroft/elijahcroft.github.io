@@ -1,6 +1,6 @@
 jQuery(document).ready(function($) {
     $('.slick.marquee').slick({
-      speed: 5000,
+      speed: 6000,
       autoplay: true,
       autoplaySpeed: 0,
       centerMode: true,
@@ -22,7 +22,7 @@ document.body.appendChild(glow);
 
 document.addEventListener('mousemove', (e) => {
   
-  glow.style.transform = `translate(${e.clientX - 25}px, ${e.clientY - 25}px)`;
+  glow.style.transform = `translate(${e.clientX - 45}px, ${e.clientY - 45}px)`;
 });
 
   
