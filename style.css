@@ -223,16 +223,22 @@ button:hover::before {
    
 .card{
     background-color: #141414;
-    box-shadow: 1px 8px 20px  #686769; 
+    box-shadow: 1px 8px 20px  #686769;
 }
 .card-body{
     background-color: #282828;
     color:#ffffff;
-    box-shadow: 1px 8px 20px rgba(0, 0, 0, 0.7); 
-    
+    box-shadow: 1px 8px 20px rgba(0, 0, 0, 0.7);
 }
 .card-image-top{
-  box-shadow: 0 8px 16px #ffffff; 
+  box-shadow: 0 8px 16px #ffffff;
+}
+
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  padding: 16px 16px 32px;
 }
 
 
@@ -442,10 +448,10 @@ button:hover::before {
     width: 50px;
   }
 
-  .card {
-    width: 100% !important;
-    max-width: 280px;
-    margin: 0 auto;
+  .projects-grid {
+    grid-template-columns: 1fr;
+    padding: 12px 8px 24px;
+    gap: 14px;
   }
 
   .social-links {
