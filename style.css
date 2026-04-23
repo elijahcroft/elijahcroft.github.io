@@ -326,16 +326,16 @@ button:hover::before {
   .social-btn img {
     margin-left: -2px;
   }
-  
+
   #twitter svg {
     fill: #1da1f2;
-    
+
   }
-  
+
   #linkedin svg {
     fill: #0e76a8;
   }
-  
+
   #github {
     fill: #333;
   }
@@ -347,7 +347,120 @@ button:hover::before {
     background-color: rgba(255, 255, 255, 0.3);
     filter: blur(10px);
     pointer-events: none;
-    transition: transform 0.1s linear; 
+    transition: transform 0.1s linear;
   }
+
+@media (max-width: 768px) {
+  html, body {
+    overflow: hidden;
+    height: 100%;
+    position: fixed;
+    width: 100%;
+  }
+
+  .container-fluid {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+    padding: 0;
+  }
+
+  .container-fluid > .row {
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+    margin: 0;
+  }
+
+  .left-half {
+    height: auto !important;
+    min-height: unset !important;
+    flex: 0 0 auto;
+    padding: 16px 12px 12px;
+    overflow: hidden;
+  }
+
+  .right-half {
+    flex: 1 1 auto;
+    height: auto !important;
+    overflow-y: scroll;
+    -webkit-overflow-scrolling: touch;
+    margin-left: 0 !important;
+    margin-top: 0 !important;
+    padding: 0 12px 20px;
+  }
+
+  h1 {
+    font-size: 36px !important;
+  }
+
+  h2 {
+    font-size: 24px !important;
+  }
+
+  h3 {
+    font-size: 18px !important;
+  }
+
+  h4 {
+    font-size: 15px !important;
+  }
+
+  h5 {
+    font-size: 13px !important;
+  }
+
+  .top-container {
+    padding-top: 16px !important;
+    height: auto !important;
+  }
+
+  .top-container h1 {
+    font-size: 42px !important;
+  }
+
+  .selfie {
+    width: 70px !important;
+    height: 70px !important;
+  }
+
+  .name-row h1 {
+    font-size: 36px !important;
+  }
+
+  .tech-slideshow {
+    height: 60px;
+    max-width: 100%;
+  }
+
+  .mover-1 {
+    height: 100px;
+  }
+
+  .mover-1 img {
+    width: 50px;
+  }
+
+  .card {
+    width: 100% !important;
+    max-width: 280px;
+    margin: 0 auto;
+  }
+
+  .social-links {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .button {
+    margin-top: 8px;
+  }
+
+  .anchor {
+    padding: 10px 24px;
+    font-size: 14px;
+  }
+}
 
 
