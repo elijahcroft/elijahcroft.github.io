@@ -1,12 +1,15 @@
 
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
 body {
-    font-family: 'Open Sans', sans-serif; /* Default font for the body */
-    margin:0;
+    font-family: 'Open Sans', sans-serif;
+    margin: 0;
     background-color: #090909;
     overflow-x: hidden;
-    
 }
-html, body {margin: 0; height: auto; overflow: hidden;}
+html, body {margin: 0; height: auto; overflow: hidden; max-width: 100%;}
 .error-container {
   text-align: center;
   padding: 50px;
@@ -127,7 +130,8 @@ p {
     overflow-x: hidden;
 }
 .container-fluid{
-    overflow-y: hidden;
+    overflow: hidden;
+    max-width: 100vw;
 }
 
 .top-container{
@@ -148,8 +152,9 @@ p {
 }
 .right-half{
     overflow-y: scroll;
-    height:100vh;
     overflow-x: hidden;
+    height:100vh;
+    max-width: 100%;
     margin-left: 40px;
     margin-top: -20px;
 }
