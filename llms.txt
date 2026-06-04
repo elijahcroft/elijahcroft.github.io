@@ -1,0 +1,10 @@
+# Allow AI/LLM crawlers to index this site
+User-agent: ChatGPT-User
+User-agent: GPTBot
+User-agent: Claude-Web
+User-agent: Googlebot
+User-agent: Bingbot
+Allow: /
+
+# Disallow crawling of PDFs for now (optional - remove if you want them indexed)
+Disallow: /*.pdf$
