@@ -1,10 +1,15 @@
 /* Offline cache. Bump CACHE when you change files. */
-const CACHE = "recall-v1";
+const CACHE = "recall-v3";
 const ASSETS = [
   ".",
   "index.html",
   "styles.css",
   "app.js",
+  "db.js",
+  "apkg.js",
+  "vendor/fflate.js",
+  "vendor/sql-wasm.js",
+  "vendor/sql-wasm.wasm",
   "manifest.json",
   "icons/icon.svg",
 ];

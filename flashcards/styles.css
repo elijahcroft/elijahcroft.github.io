@@ -226,3 +226,54 @@ html, body {
   margin-top: 100px;
 }
 .done .big { font-size: 3rem; margin-bottom: 12px; }
+
+/* Media inside cards */
+.flashcard img, .card-row img { max-width: 100%; border-radius: 10px; }
+.flashcard audio, .card-row audio { width: 100%; margin-top: 12px; }
+
+/* Cloze */
+.cloze-blank { color: var(--accent); font-weight: 700; }
+.cloze-ans { color: var(--good); font-weight: 700; }
+
+/* small hint text on labels */
+.hint { color: var(--muted); font-weight: 400; font-size: .8em; }
+
+/* Stats */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.stat {
+  background: var(--card);
+  border-radius: 14px;
+  padding: 16px 8px;
+  text-align: center;
+}
+.stat-num { font-size: 1.6rem; font-weight: 700; }
+.stat-lbl { font-size: .75rem; color: var(--muted); margin-top: 4px; }
+
+.chart-wrap { background: var(--card); border-radius: 14px; padding: 16px; }
+.chart-title { font-size: .85rem; color: var(--muted); margin-bottom: 12px; }
+.chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 120px;
+}
+.bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  justify-content: flex-end;
+}
+.bar {
+  width: 100%;
+  min-height: 2px;
+  background: var(--accent);
+  border-radius: 4px 4px 0 0;
+}
+.bar-lbl { font-size: .6rem; color: var(--muted); margin-top: 4px; }
