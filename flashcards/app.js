@@ -3,24 +3,27 @@
    plus media blobs. No backend. */
 
 const DAY = 86400000;
+const LEARN_STEPS = [60000, 600000]; // learning/relearning: 1m, 10m
+const GRAD_INTERVAL = 1; // days when a card graduates on "Good"
+const EASY_INTERVAL = 4; // days when a card graduates on "Easy"
+const DEFAULT_NEW_PER_DAY = 20;
+const DEFAULT_REV_PER_DAY = 200;
 
 /* ---------- data ----------
-   deck: { id, name, cards: [card] }
-   card: { id, front, back, ease, interval, due, reps, cloze?, clozeNum? }
+   deck: { id, name, cards:[card], newPerDay?, revPerDay?, progress? }
+     progress: { date:'YYYY-MM-DD', newDone, revDone }  (daily limit counters)
+   card: { id, front, back, ease, interval, due, reps, lapses,
+           state:'new'|'learning'|'review', step, suspended?, cloze?, clozeNum? }
      ease: SM-2 ease factor (start 2.5)
-     interval: days until next review
-     due: epoch ms when card is next due
-     cloze/clozeNum: present on cloze cards (front/back hold extra text) */
+     interval: days until next review (for review-state cards)
+     due: epoch ms when next due
+     step: index into LEARN_STEPS while learning */
 
 let decks = [];
-let reviewLog = []; // [{ t: epochMs, g: grade }]
+let reviewLog = []; // [{ t, g, deckId, was }]  was: 'new'|'learning'|'review'
 
 function save() {
-  Store.saveDecks(decks); // fire-and-forget; ordering preserved by IDB txns
-}
-function logReview(grade) {
-  reviewLog.push({ t: Date.now(), g: grade });
-  Store.saveLog(reviewLog);
+  Store.saveDecks(decks); // fire-and-forget; IDB serializes writes
 }
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -28,34 +31,112 @@ function uid() {
 function deckById(id) {
   return decks.find((d) => d.id === id);
 }
-function dueCards(deck) {
-  const now = Date.now();
-  return deck.cards.filter((c) => c.due <= now);
+
+// State of a card, tolerant of older/imported cards that lack the field.
+function stateOf(c) {
+  return c.state || (c.reps > 0 || c.interval > 0 ? "review" : "new");
+}
+function todayKey() {
+  return new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD, local
+}
+function deckProgress(deck) {
+  if (!deck.progress || deck.progress.date !== todayKey())
+    deck.progress = { date: todayKey(), newDone: 0, revDone: 0 };
+  return deck.progress;
+}
+function newLimit(deck) {
+  return deck.newPerDay ?? DEFAULT_NEW_PER_DAY;
+}
+function revLimit(deck) {
+  return deck.revPerDay ?? DEFAULT_REV_PER_DAY;
 }
 
-/* ---------- SM-2 scheduling ----------
+// Cards available to study right now, respecting daily limits.
+function buildQueue(deck) {
+  const now = Date.now();
+  const p = deckProgress(deck);
+  const live = deck.cards.filter((c) => !c.suspended);
+  const learning = live
+    .filter((c) => stateOf(c) === "learning" && c.due <= now)
+    .sort((a, b) => a.due - b.due);
+  const reviews = live
+    .filter((c) => stateOf(c) === "review" && c.due <= now)
+    .sort((a, b) => a.due - b.due)
+    .slice(0, Math.max(0, revLimit(deck) - p.revDone));
+  const news = live
+    .filter((c) => stateOf(c) === "new")
+    .slice(0, Math.max(0, newLimit(deck) - p.newDone));
+  return { learning, reviews, news };
+}
+function dueCount(deck) {
+  const q = buildQueue(deck);
+  return q.learning.length + q.reviews.length + q.news.length;
+}
+
+/* ---------- scheduling ----------
    grade: 0 again, 1 hard, 2 good, 3 easy */
 function schedule(card, grade) {
   const now = Date.now();
-  if (grade === 0) {
-    card.ease = Math.max(1.3, card.ease - 0.2);
-    card.interval = 0;
-    card.due = now + 60000;
-    card.reps = 0;
+  const st = stateOf(card);
+
+  if (st === "review") {
+    if (grade === 0) {
+      card.lapses = (card.lapses || 0) + 1;
+      card.ease = Math.max(1.3, card.ease - 0.2);
+      card.state = "learning";
+      card.step = 0;
+      card.interval = Math.max(1, Math.round(card.interval * 0.4)); // kept for re-graduation
+      card.due = now + LEARN_STEPS[0];
+      return;
+    }
+    let mult;
+    if (grade === 1) {
+      mult = 1.2;
+      card.ease = Math.max(1.3, card.ease - 0.15);
+    } else if (grade === 2) {
+      mult = card.ease;
+    } else {
+      mult = card.ease * 1.3;
+      card.ease += 0.15;
+    }
+    card.interval = Math.max(1, Math.round(card.interval * mult));
+    card.due = now + card.interval * DAY;
     return;
   }
-  card.reps += 1;
-  if (card.reps === 1) {
-    card.interval = grade === 3 ? 4 : 1;
-  } else if (card.reps === 2) {
-    card.interval = grade === 3 ? 6 : grade === 1 ? 3 : 4;
-  } else {
-    const mult = grade === 1 ? 1.2 : grade === 3 ? card.ease * 1.3 : card.ease;
-    card.interval = Math.round(card.interval * mult);
+
+  // new or learning (relearning included)
+  card.reps = (card.reps || 0) + 1;
+  if (grade === 0) {
+    card.state = "learning";
+    card.step = 0;
+    card.due = now + LEARN_STEPS[0];
+    return;
   }
-  if (grade === 1) card.ease = Math.max(1.3, card.ease - 0.15);
-  if (grade === 3) card.ease = card.ease + 0.15;
-  card.due = now + card.interval * DAY;
+  if (grade === 3) {
+    // Easy graduates immediately
+    card.state = "review";
+    card.step = 0;
+    card.interval = Math.max(EASY_INTERVAL, card.interval || 0);
+    card.due = now + card.interval * DAY;
+    return;
+  }
+  if (grade === 1) {
+    // Hard repeats the current step
+    card.state = "learning";
+    card.due = now + LEARN_STEPS[Math.min(card.step || 0, LEARN_STEPS.length - 1)];
+    return;
+  }
+  // Good advances one step, graduating after the last
+  card.state = "learning";
+  card.step = (card.step || 0) + 1;
+  if (card.step >= LEARN_STEPS.length) {
+    card.state = "review";
+    card.step = 0;
+    card.interval = Math.max(GRAD_INTERVAL, card.interval || 0);
+    card.due = now + card.interval * DAY;
+  } else {
+    card.due = now + LEARN_STEPS[card.step];
+  }
 }
 
 function newCard(front, back, extra = {}) {
@@ -68,14 +149,15 @@ function newCard(front, back, extra = {}) {
       interval: 0,
       due: Date.now(),
       reps: 0,
+      lapses: 0,
+      state: "new",
+      step: 0,
     },
     extra
   );
 }
 
-/* ---------- cloze ----------
-   {{c1::answer}} or {{c1::answer::hint}}. Each distinct cloze number becomes
-   its own card; on a card we hide its own number and reveal the others. */
+/* ---------- cloze ---------- */
 const CLOZE_RE = /\{\{c(\d+)::(.*?)(?:::(.*?))?\}\}/g;
 
 function clozeNumbers(src) {
@@ -92,7 +174,7 @@ function renderCloze(src, targetNum, reveal) {
         ? `<span class="cloze-ans">${ans}</span>`
         : `<span class="cloze-blank">[${hint || "..."}]</span>`;
     }
-    return ans; // other clozes shown filled in
+    return ans;
   });
 }
 function stripCloze(src) {
@@ -109,7 +191,6 @@ function escapeHTML(s) {
 function looksRich(s) {
   return /<\w|<\/|\[sound:/.test(s);
 }
-// Prepare an HTML string: drop scripts, turn [sound:x] into an audio element.
 function cardHTML(raw) {
   let s = String(raw || "").replace(/<script[\s\S]*?<\/script>/gi, "");
   s = s.replace(
@@ -125,7 +206,6 @@ function setContent(el, raw) {
     : escapeHTML(raw).replace(/\n/g, "<br>");
   resolveMedia(el);
 }
-// Swap media filenames for object URLs pulled from IndexedDB.
 async function resolveMedia(container) {
   for (const img of container.querySelectorAll("img[src]")) {
     const src = img.getAttribute("src");
@@ -138,7 +218,6 @@ async function resolveMedia(container) {
     if (blob) a.src = URL.createObjectURL(blob);
   }
 }
-// A short plain-text label for list rows.
 function cardLabel(c) {
   const raw = c.cloze ? stripCloze(c.cloze) : c.front || c.back;
   return String(raw).replace(/<[^>]+>/g, "").replace(/\[sound:[^\]]+\]/g, "🔊");
@@ -160,7 +239,8 @@ function go(v) {
 backBtn.onclick = () => {
   if (view.name === "deck") go({ name: "decks" });
   else if (view.name === "review") go({ name: "deck", id: view.id });
-  else if (view.name === "edit") go({ name: "deck", id: view.deckId });
+  else if (view.name === "edit")
+    go(view.from || { name: "deck", id: view.deckId });
   else go({ name: "decks" });
 };
 
@@ -170,16 +250,19 @@ addBtn.onclick = () => {
 };
 
 function render() {
+  document.onkeydown = null; // review installs its own; clear on every nav
   const isRoot = view.name === "decks";
   backBtn.hidden = isRoot;
   addBtn.hidden = !(view.name === "decks" || view.name === "deck");
 
   if (view.name === "decks") return renderDecks();
   if (view.name === "deck") return renderDeck(deckById(view.id));
-  if (view.name === "review") return renderReview(deckById(view.id));
-  if (view.name === "edit") return renderEdit(view.deckId, view.cardId);
+  if (view.name === "review") return renderReview(deckById(view.id), view.cram);
+  if (view.name === "edit")
+    return renderEdit(view.deckId, view.cardId, view.from);
   if (view.name === "import") return renderImport();
   if (view.name === "stats") return renderStats();
+  if (view.name === "browse") return renderBrowse();
 }
 
 /* ---------- decks list ---------- */
@@ -197,7 +280,7 @@ function renderDecks() {
   }
 
   decks.forEach((d) => {
-    const due = dueCards(d).length;
+    const due = dueCount(d);
     const el = document.createElement("div");
     el.className = "deck";
     el.innerHTML = `
@@ -215,25 +298,17 @@ function renderDecks() {
 }
 
 function appendLibraryActions() {
-  const statsBtn = document.createElement("button");
-  statsBtn.className = "btn secondary";
-  statsBtn.textContent = "Stats";
-  statsBtn.onclick = () => go({ name: "stats" });
-  app.appendChild(statsBtn);
-
-  const importBtn = document.createElement("button");
-  importBtn.className = "btn secondary";
-  importBtn.textContent = "Import";
-  importBtn.onclick = () => go({ name: "import" });
-  app.appendChild(importBtn);
-
-  if (decks.length) {
-    const exportBtn = document.createElement("button");
-    exportBtn.className = "btn secondary";
-    exportBtn.textContent = "Export backup";
-    exportBtn.onclick = exportBackup;
-    app.appendChild(exportBtn);
-  }
+  const mk = (label, fn) => {
+    const b = document.createElement("button");
+    b.className = "btn secondary";
+    b.textContent = label;
+    b.onclick = fn;
+    app.appendChild(b);
+  };
+  if (decks.length) mk("Browse all cards", () => go({ name: "browse" }));
+  mk("Stats", () => go({ name: "stats" }));
+  mk("Import", () => go({ name: "import" }));
+  if (decks.length) mk("Export backup", exportBackup);
 }
 
 function exportBackup() {
@@ -263,13 +338,36 @@ function renderDeck(deck) {
   titleEl.textContent = deck.name;
   app.innerHTML = "";
 
-  const due = dueCards(deck).length;
+  const q = buildQueue(deck);
+  const due = q.learning.length + q.reviews.length + q.news.length;
+
+  const counts = document.createElement("div");
+  counts.className = "queue-counts";
+  counts.innerHTML = `
+    <span class="qc new">${q.news.length}<small>new</small></span>
+    <span class="qc learn">${q.learning.length}<small>learn</small></span>
+    <span class="qc review">${q.reviews.length}<small>due</small></span>`;
+  app.appendChild(counts);
 
   const studyBtn = document.createElement("button");
   studyBtn.className = "btn";
-  studyBtn.textContent = due ? `Study (${due} due)` : "Nothing due — study anyway";
-  studyBtn.onclick = () => go({ name: "review", id: deck.id });
+  studyBtn.textContent = due ? `Study (${due})` : "Nothing due — cram all";
+  studyBtn.onclick = () => go({ name: "review", id: deck.id, cram: due === 0 });
   app.appendChild(studyBtn);
+
+  // deck options: new-cards-per-day limit
+  const opt = document.createElement("button");
+  opt.className = "btn secondary";
+  opt.textContent = `New cards/day: ${newLimit(deck)}`;
+  opt.onclick = () => {
+    const v = prompt("New cards per day for this deck:", newLimit(deck));
+    if (v === null) return;
+    const n = Math.max(0, parseInt(v, 10) || 0);
+    deck.newPerDay = n;
+    save();
+    render();
+  };
+  app.appendChild(opt);
 
   if (deck.cards.length === 0) {
     const e = document.createElement("div");
@@ -280,7 +378,7 @@ function renderDeck(deck) {
 
   deck.cards.forEach((c) => {
     const row = document.createElement("div");
-    row.className = "card-row";
+    row.className = "card-row" + (c.suspended ? " suspended" : "");
     row.innerHTML = `<div class="front"></div><div class="back"></div>
       <div class="card-row-actions">
         <button class="edit">Edit</button>
@@ -319,7 +417,7 @@ function renderDeck(deck) {
 }
 
 /* ---------- add / edit card ---------- */
-function renderEdit(deckId, cardId) {
+function renderEdit(deckId, cardId, from) {
   const deck = deckById(deckId);
   const card = cardId ? deck.cards.find((c) => c.id === cardId) : null;
   titleEl.textContent = card ? "Edit card" : "New card";
@@ -345,7 +443,6 @@ function renderEdit(deckId, cardId) {
   }
   frontEl.focus();
 
-  // Attach an image: store the blob, insert <img src="filename"> at the cursor.
   let lastFocused = frontEl;
   frontEl.addEventListener("focus", () => (lastFocused = frontEl));
   backEl.addEventListener("focus", () => (lastFocused = backEl));
@@ -393,7 +490,7 @@ function renderEdit(deckId, cardId) {
   }
 
   document.getElementById("saveCard").onclick = () => {
-    if (commit()) go({ name: "deck", id: deckId });
+    if (commit()) go(from || { name: "deck", id: deckId });
   };
   document.getElementById("saveAdd").onclick = () => {
     if (commit()) {
@@ -409,6 +506,49 @@ function insertAtCursor(el, text) {
   el.value = el.value.slice(0, start) + text + el.value.slice(start);
   el.focus();
   el.selectionStart = el.selectionEnd = start + text.length;
+}
+
+/* ---------- browse / search ---------- */
+function renderBrowse() {
+  titleEl.textContent = "Browse";
+  app.innerHTML = `
+    <div class="field">
+      <input id="q" placeholder="Search all cards…" autocomplete="off" />
+    </div>
+    <div id="results"></div>`;
+  const q = document.getElementById("q");
+  const results = document.getElementById("results");
+
+  function run() {
+    const term = q.value.trim().toLowerCase();
+    results.innerHTML = "";
+    let shown = 0;
+    for (const deck of decks) {
+      for (const c of deck.cards) {
+        const hay = (cardLabel(c) + " " + (c.back || "")).toLowerCase();
+        if (term && !hay.includes(term)) continue;
+        if (++shown > 300) break;
+        const row = document.createElement("div");
+        row.className = "card-row" + (c.suspended ? " suspended" : "");
+        row.innerHTML = `<div class="front"></div><div class="back"></div>`;
+        row.querySelector(".front").textContent = cardLabel(c);
+        row.querySelector(".back").textContent = deck.name;
+        row.onclick = () =>
+          go({
+            name: "edit",
+            deckId: deck.id,
+            cardId: c.id,
+            from: { name: "browse" },
+          });
+        results.appendChild(row);
+      }
+    }
+    if (!shown)
+      results.innerHTML = `<div class="empty">No matching cards.</div>`;
+  }
+  q.oninput = run;
+  run();
+  q.focus();
 }
 
 /* ---------- import ---------- */
@@ -450,6 +590,12 @@ gato\tcat"></textarea>
       let total = 0;
       imported.forEach((d) => {
         if (!d.cards.length) return;
+        d.cards.forEach((c) => {
+          // imported cards lack these scheduling fields; fill without clobbering
+          if (c.state == null) c.state = stateOf(c);
+          if (c.step == null) c.step = 0;
+          if (c.lapses == null) c.lapses = 0;
+        });
         decks.push({ id: uid(), name: d.name, cards: d.cards });
         total += d.cards.length;
       });
@@ -513,17 +659,15 @@ function restoreBackup(jsonStr) {
   let added = 0;
   for (const d of data) {
     if (!d || !d.name || !Array.isArray(d.cards)) continue;
-    const cards = d.cards.map((c) => ({
-      id: c.id || uid(),
-      front: String(c.front || ""),
-      back: String(c.back || ""),
-      ease: c.ease ?? 2.5,
-      interval: c.interval ?? 0,
-      due: c.due ?? Date.now(),
-      reps: c.reps ?? 0,
-      ...(c.cloze ? { cloze: c.cloze, clozeNum: c.clozeNum } : {}),
-    }));
-    const deck = { id: d.id || uid(), name: String(d.name), cards };
+    const cards = d.cards.map((c) =>
+      Object.assign(newCard(String(c.front || ""), String(c.back || "")), c)
+    );
+    const deck = {
+      id: d.id || uid(),
+      name: String(d.name),
+      cards,
+      ...(d.newPerDay != null ? { newPerDay: d.newPerDay } : {}),
+    };
     const existing = decks.findIndex((x) => x.id === deck.id);
     if (existing >= 0) decks[existing] = deck;
     else decks.push(deck);
@@ -534,50 +678,89 @@ function restoreBackup(jsonStr) {
 }
 
 /* ---------- review session ---------- */
-function renderReview(deck) {
+function renderReview(deck, cram) {
   if (!deck) return go({ name: "decks" });
-  titleEl.textContent = "Study";
+  titleEl.textContent = cram ? "Cram" : "Study";
+  const p = deckProgress(deck);
+  let lastAnswer = null; // one-level undo
 
-  let queue = dueCards(deck);
-  if (queue.length === 0) queue = [...deck.cards];
+  function pickNext() {
+    if (cram) {
+      const pool = deck.cards.filter((c) => !c.suspended);
+      return pool[Math.floor(Math.random() * pool.length)] || null;
+    }
+    const q = buildQueue(deck);
+    return q.learning[0] || q.reviews[0] || q.news[0] || null;
+  }
 
-  if (queue.length === 0) {
-    app.innerHTML = `<div class="done"><div class="big">🎉</div>This deck has no cards.</div>`;
-    return;
+  function counts() {
+    if (cram) return { news: "—", learn: "—", reviews: "—" };
+    const q = buildQueue(deck);
+    return {
+      news: q.news.length,
+      learn: q.learning.length,
+      reviews: q.reviews.length,
+    };
   }
 
   function nextCard() {
-    const now = Date.now();
-    const remaining = queue.filter((c) => c.due <= now);
-    if (remaining.length === 0) {
-      app.innerHTML = `<div class="done"><div class="big">✅</div>All done for now!</div>`;
-      const b = document.createElement("button");
-      b.className = "btn";
-      b.textContent = "Back to deck";
-      b.onclick = () => go({ name: "deck", id: deck.id });
-      app.appendChild(b);
-      return;
-    }
-    showCard(remaining[0]);
+    const card = pickNext();
+    if (!card) return showDone();
+    showCard(card);
+  }
+
+  function showDone() {
+    document.onkeydown = null;
+    app.innerHTML = `<div class="done"><div class="big">✅</div>All done for now!</div>`;
+    const b = document.createElement("button");
+    b.className = "btn";
+    b.textContent = "Back to deck";
+    b.onclick = () => go({ name: "deck", id: deck.id });
+    app.appendChild(b);
+  }
+
+  function header() {
+    const c = counts();
+    return `<div class="study-bar">
+      <div class="queue-counts mini">
+        <span class="qc new">${c.news}</span>
+        <span class="qc learn">${c.learn}</span>
+        <span class="qc review">${c.reviews}</span>
+      </div>
+      <div class="study-tools">
+        <button id="undoBtn" class="tool" ${lastAnswer ? "" : "disabled"}>↶ Undo</button>
+        <button id="suspendBtn" class="tool">⏸ Suspend</button>
+        <button id="editBtn" class="tool">✏️ Edit</button>
+      </div>
+    </div>`;
   }
 
   function showCard(card) {
-    app.innerHTML = `
-      <div class="review-wrap">
+    app.innerHTML =
+      header() +
+      `<div class="review-wrap">
         <div class="flashcard" id="fc">
           <div class="front-text"></div>
           <div class="tap-hint">tap to reveal</div>
         </div>
       </div>`;
+    wireTools(card);
     const ft = document.querySelector("#fc .front-text");
     if (card.cloze) ft.innerHTML = renderCloze(card.cloze, card.clozeNum, false);
     else setContent(ft, card.front);
     resolveMedia(ft);
     document.getElementById("fc").onclick = () => reveal(card);
+    document.onkeydown = (e) => {
+      if (e.key === " " || e.key === "Enter") {
+        e.preventDefault();
+        reveal(card);
+      } else if (e.key.toLowerCase() === "u" && lastAnswer) undo();
+    };
   }
 
   function reveal(card) {
     const fc = document.getElementById("fc");
+    if (!fc) return;
     fc.onclick = null;
     fc.innerHTML = `<div class="front-text"></div>
       <div class="divider"></div>
@@ -593,39 +776,86 @@ function renderReview(deck) {
     }
     resolveMedia(fc);
 
-    const wrap = document.querySelector(".review-wrap");
     const grades = document.createElement("div");
     grades.className = "grade-row";
     grades.innerHTML = `
-      <button class="grade again" data-g="0">Again<small>&lt;1m</small></button>
+      <button class="grade again" data-g="0">Again</button>
       <button class="grade hard" data-g="1">Hard</button>
       <button class="grade good" data-g="2">Good</button>
       <button class="grade easy" data-g="3">Easy</button>`;
     grades.querySelectorAll("button").forEach((btn) => {
-      btn.onclick = () => {
-        const g = Number(btn.dataset.g);
-        schedule(card, g);
-        logReview(g);
-        save();
-        nextCard();
-      };
+      btn.onclick = () => answer(card, Number(btn.dataset.g));
     });
-    wrap.appendChild(grades);
+    document.querySelector(".review-wrap").appendChild(grades);
     annotateGrades(card, grades);
+
+    document.onkeydown = (e) => {
+      if ("0123".includes(e.key)) answer(card, Number(e.key));
+      else if ("1234".includes(e.key)) answer(card, Number(e.key) - 1);
+      else if (e.key.toLowerCase() === "u" && lastAnswer) undo();
+    };
+  }
+
+  function answer(card, grade) {
+    const was = stateOf(card);
+    lastAnswer = { card, snapshot: JSON.parse(JSON.stringify(card)), was };
+    schedule(card, grade);
+    if (!cram) {
+      if (was === "new") p.newDone++;
+      else if (was === "review") p.revDone++;
+    }
+    reviewLog.push({ t: Date.now(), g: grade, deckId: deck.id, was });
+    Store.saveLog(reviewLog);
+    save();
+    nextCard();
+  }
+
+  function undo() {
+    if (!lastAnswer) return;
+    Object.assign(lastAnswer.card, lastAnswer.snapshot);
+    if (!cram) {
+      if (lastAnswer.was === "new") p.newDone = Math.max(0, p.newDone - 1);
+      else if (lastAnswer.was === "review")
+        p.revDone = Math.max(0, p.revDone - 1);
+    }
+    reviewLog.pop();
+    Store.saveLog(reviewLog);
+    const restored = lastAnswer.card;
+    lastAnswer = null;
+    save();
+    showCard(restored);
+  }
+
+  function wireTools(card) {
+    document.getElementById("undoBtn").onclick = undo;
+    document.getElementById("suspendBtn").onclick = () => {
+      card.suspended = true;
+      save();
+      nextCard();
+    };
+    document.getElementById("editBtn").onclick = () =>
+      go({
+        name: "edit",
+        deckId: deck.id,
+        cardId: card.id,
+        from: { name: "review", id: deck.id, cram },
+      });
   }
 
   nextCard();
 }
 
 function fmtInterval(card, grade) {
-  const clone = JSON.parse(JSON.stringify(card));
-  schedule(clone, grade);
-  if (clone.interval === 0) return "<1m";
-  if (clone.interval < 1) return "<1d";
-  return clone.interval + "d";
+  const c = JSON.parse(JSON.stringify(card));
+  schedule(c, grade);
+  const ms = c.due - Date.now();
+  if (ms < 3600000) return Math.max(1, Math.round(ms / 60000)) + "m";
+  if (ms < DAY) return Math.round(ms / 3600000) + "h";
+  if (ms < 30 * DAY) return Math.round(ms / DAY) + "d";
+  return Math.round(ms / (30 * DAY)) + "mo";
 }
 function annotateGrades(card, grades) {
-  [1, 2, 3].forEach((g) => {
+  [0, 1, 2, 3].forEach((g) => {
     const btn = grades.querySelector(`[data-g="${g}"]`);
     const label = btn.childNodes[0].textContent;
     btn.innerHTML = `${label}<small>${fmtInterval(card, g)}</small>`;
@@ -638,18 +868,16 @@ function renderStats() {
   app.innerHTML = "";
 
   const totalCards = decks.reduce((n, d) => n + d.cards.length, 0);
-  const dueNow = decks.reduce((n, d) => n + dueCards(d).length, 0);
+  const dueNow = decks.reduce((n, d) => n + dueCount(d), 0);
 
-  // bucket reviews by local day
   const byDay = new Map();
   for (const r of reviewLog) {
-    const key = new Date(r.t).toLocaleDateString("en-CA"); // YYYY-MM-DD
+    const key = new Date(r.t).toLocaleDateString("en-CA");
     byDay.set(key, (byDay.get(key) || 0) + 1);
   }
-  const today = new Date().toLocaleDateString("en-CA");
+  const today = todayKey();
   const reviewedToday = byDay.get(today) || 0;
 
-  // streak: consecutive days up to today with ≥1 review
   let streak = 0;
   const d = new Date();
   while (byDay.get(d.toLocaleDateString("en-CA"))) {
@@ -675,13 +903,12 @@ function renderStats() {
     .join("");
   app.appendChild(grid);
 
-  // last 14 days bar chart
   const days = [];
   for (let i = 13; i >= 0; i--) {
     const dt = new Date();
     dt.setDate(dt.getDate() - i);
     const key = dt.toLocaleDateString("en-CA");
-    days.push({ key, n: byDay.get(key) || 0, label: dt.getDate() });
+    days.push({ n: byDay.get(key) || 0, label: dt.getDate() });
   }
   const max = Math.max(1, ...days.map((x) => x.n));
   const chart = document.createElement("div");

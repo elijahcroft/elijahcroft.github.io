@@ -1,5 +1,5 @@
 /* Offline cache. Bump CACHE when you change files. */
-const CACHE = "recall-v3";
+const CACHE = "recall-v4";
 const ASSETS = [
   ".",
   "index.html",

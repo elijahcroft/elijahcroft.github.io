@@ -34,6 +34,17 @@ SM-2-ish scheduling. When reviewing, grade each card:
 
 Each button shows how long until you'll see the card again.
 
+## Studying (Anki-style engine)
+- **Learning steps** — new cards step through 1m → 10m before graduating; Again
+  resets, Hard repeats, Good advances, Easy graduates to 4 days. Review cards
+  grow by their ease factor; a lapse drops them back into relearning.
+- **Daily new-card limit** — default 20/deck, editable on the deck screen. The
+  deck and study screens show live **new / learning / due** counts.
+- **Undo** the last answer, **Suspend** a card, or **Edit** it mid-review.
+- **Cram** — when nothing's due, "cram all" reviews the whole deck.
+- **Browse** — search across every card in every deck; tap to edit.
+- **Keyboard** (desktop): Space/Enter flips; 1–4 grade; U undoes.
+
 ## Anki features
 - **Import `.apkg`** — Import view → pick an Anki deck file. Reads the SQLite
   collection + media. Cards come in as new (Anki's own scheduling isn't imported).
