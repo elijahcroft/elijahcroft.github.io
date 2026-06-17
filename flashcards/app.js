@@ -678,11 +678,16 @@ function restoreBackup(jsonStr) {
 }
 
 /* ---------- review session ---------- */
+const REVIEW_EASE = "cubic-bezier(.22,.61,.36,1)";
+const REVIEW_SPRING = "cubic-bezier(.34,1.56,.64,1)";
+
 function renderReview(deck, cram) {
   if (!deck) return go({ name: "decks" });
   titleEl.textContent = cram ? "Cram" : "Study";
   const p = deckProgress(deck);
   let lastAnswer = null; // one-level undo
+  let answered = 0; // for the session progress bar
+  let revealed = false;
 
   function pickNext() {
     if (cram) {
@@ -728,28 +733,88 @@ function renderReview(deck, cram) {
         <span class="qc review">${c.reviews}</span>
       </div>
       <div class="study-tools">
-        <button id="undoBtn" class="tool" ${lastAnswer ? "" : "disabled"}>↶ Undo</button>
-        <button id="suspendBtn" class="tool">⏸ Suspend</button>
-        <button id="editBtn" class="tool">✏️ Edit</button>
+        <button id="helpBtn" class="tool" title="Shortcuts">?</button>
+        <button id="undoBtn" class="tool" ${lastAnswer ? "" : "disabled"}>↶</button>
+        <button id="suspendBtn" class="tool">⏸</button>
+        <button id="editBtn" class="tool">✏️</button>
       </div>
     </div>`;
   }
 
+  function updateProgress() {
+    const bar = document.getElementById("pbar");
+    if (!bar) return;
+    const total = answered + dueCount(deck);
+    bar.style.width = (total ? (answered / total) * 100 : 100) + "%";
+  }
+
+  function fillFront(faceEl, card) {
+    faceEl.innerHTML = "";
+    const c = document.createElement("div");
+    c.className = "card-content";
+    if (card.cloze) c.innerHTML = renderCloze(card.cloze, card.clozeNum, false);
+    else setContent(c, card.front);
+    faceEl.appendChild(c);
+    faceEl.insertAdjacentHTML(
+      "beforeend",
+      `<div class="tap-hint">tap or press space to reveal</div>`
+    );
+    resolveMedia(faceEl);
+  }
+
+  function fillBack(faceEl, card) {
+    faceEl.innerHTML = "";
+    const add = (cls, fill) => {
+      const el = document.createElement("div");
+      el.className = cls;
+      fill(el);
+      faceEl.appendChild(el);
+    };
+    if (card.cloze) {
+      add("card-content answer", (el) => {
+        el.innerHTML = renderCloze(card.cloze, card.clozeNum, true);
+      });
+      if (card.back) {
+        add("divider", () => {});
+        add("question", (el) => setContent(el, card.back));
+      }
+    } else {
+      add("question", (el) => setContent(el, card.front));
+      add("divider", () => {});
+      add("card-content answer", (el) => setContent(el, card.back));
+    }
+    resolveMedia(faceEl);
+  }
+
   function showCard(card) {
+    revealed = false;
     app.innerHTML =
       header() +
       `<div class="review-wrap">
-        <div class="flashcard" id="fc">
-          <div class="front-text"></div>
-          <div class="tap-hint">tap to reveal</div>
+        ${cram ? "" : '<div class="progress"><div class="progress-bar" id="pbar"></div></div>'}
+        <div class="card-stage">
+          <div class="flashcard" id="fc">
+            <div class="card-inner" id="cardInner">
+              <div class="face face-front" id="frontFace"></div>
+              <div class="face face-back" id="backFace"></div>
+            </div>
+          </div>
+          <div class="swipe-flag left">Again</div>
+          <div class="swipe-flag right">Good</div>
+          <div class="swipe-flag up">Easy</div>
+          <div class="swipe-flag down">Hard</div>
+        </div>
+        <div id="actionArea">
+          <button class="show-btn" id="showBtn">Show answer</button>
         </div>
       </div>`;
     wireTools(card);
-    const ft = document.querySelector("#fc .front-text");
-    if (card.cloze) ft.innerHTML = renderCloze(card.cloze, card.clozeNum, false);
-    else setContent(ft, card.front);
-    resolveMedia(ft);
+    fillFront(document.getElementById("frontFace"), card);
+    fillBack(document.getElementById("backFace"), card);
+    updateProgress();
+
     document.getElementById("fc").onclick = () => reveal(card);
+    document.getElementById("showBtn").onclick = () => reveal(card);
     document.onkeydown = (e) => {
       if (e.key === " " || e.key === "Enter") {
         e.preventDefault();
@@ -759,41 +824,86 @@ function renderReview(deck, cram) {
   }
 
   function reveal(card) {
+    if (revealed) return;
+    revealed = true;
     const fc = document.getElementById("fc");
     if (!fc) return;
     fc.onclick = null;
-    fc.innerHTML = `<div class="front-text"></div>
-      <div class="divider"></div>
-      <div class="back-text"></div>`;
-    const ft = fc.querySelector(".front-text");
-    const bt = fc.querySelector(".back-text");
-    if (card.cloze) {
-      ft.innerHTML = renderCloze(card.cloze, card.clozeNum, true);
-      if (card.back) setContent(bt, card.back);
-    } else {
-      setContent(ft, card.front);
-      setContent(bt, card.back);
-    }
-    resolveMedia(fc);
+    document.getElementById("cardInner").classList.add("flipped");
 
     const grades = document.createElement("div");
     grades.className = "grade-row";
     grades.innerHTML = `
-      <button class="grade again" data-g="0">Again</button>
-      <button class="grade hard" data-g="1">Hard</button>
-      <button class="grade good" data-g="2">Good</button>
-      <button class="grade easy" data-g="3">Easy</button>`;
+      <button class="grade again" data-g="0"><span class="kbd">1</span>Again</button>
+      <button class="grade hard" data-g="1"><span class="kbd">2</span>Hard</button>
+      <button class="grade good" data-g="2"><span class="kbd">3</span>Good</button>
+      <button class="grade easy" data-g="3"><span class="kbd">4</span>Easy</button>`;
     grades.querySelectorAll("button").forEach((btn) => {
       btn.onclick = () => answer(card, Number(btn.dataset.g));
     });
-    document.querySelector(".review-wrap").appendChild(grades);
     annotateGrades(card, grades);
+    const area = document.getElementById("actionArea");
+    area.innerHTML = "";
+    area.appendChild(grades);
 
+    enableSwipe(card);
     document.onkeydown = (e) => {
       if ("0123".includes(e.key)) answer(card, Number(e.key));
       else if ("1234".includes(e.key)) answer(card, Number(e.key) - 1);
       else if (e.key.toLowerCase() === "u" && lastAnswer) undo();
     };
+  }
+
+  // Drag the card to grade it. → good, ← again, ↑ easy, ↓ hard.
+  function enableSwipe(card) {
+    const fc = document.getElementById("fc");
+    const stage = fc.parentElement;
+    const flags = {
+      left: stage.querySelector(".swipe-flag.left"),
+      right: stage.querySelector(".swipe-flag.right"),
+      up: stage.querySelector(".swipe-flag.up"),
+      down: stage.querySelector(".swipe-flag.down"),
+    };
+    const gradeOf = { left: 0, down: 1, right: 2, up: 3 };
+    const TH = 80;
+    let sx = 0, sy = 0, drag = false;
+
+    const dirOf = (dx, dy) =>
+      Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy < 0 ? "up" : "down";
+
+    fc.onpointerdown = (e) => {
+      drag = true;
+      sx = e.clientX;
+      sy = e.clientY;
+      fc.setPointerCapture(e.pointerId);
+      fc.style.transition = "none";
+    };
+    fc.onpointermove = (e) => {
+      if (!drag) return;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      fc.style.transform = `translate(${dx}px,${dy}px) rotate(${dx * 0.05}deg)`;
+      const past = Math.max(Math.abs(dx), Math.abs(dy)) > TH;
+      const d = dirOf(dx, dy);
+      for (const k in flags) flags[k].classList.toggle("show", past && k === d);
+    };
+    const end = (e) => {
+      if (!drag) return;
+      drag = false;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      for (const k in flags) flags[k].classList.remove("show");
+      if (Math.max(Math.abs(dx), Math.abs(dy)) > TH) {
+        const d = dirOf(dx, dy);
+        fc.style.transition = `transform .26s ${REVIEW_EASE}, opacity .26s linear`;
+        fc.style.transform = `translate(${dx * 2.4}px,${dy * 2.4}px) rotate(${dx * 0.09}deg)`;
+        fc.style.opacity = "0";
+        setTimeout(() => answer(card, gradeOf[d]), 170);
+      } else {
+        fc.style.transition = `transform .32s ${REVIEW_SPRING}`;
+        fc.style.transform = "";
+      }
+    };
+    fc.onpointerup = end;
+    fc.onpointercancel = end;
   }
 
   function answer(card, grade) {
@@ -804,6 +914,7 @@ function renderReview(deck, cram) {
       if (was === "new") p.newDone++;
       else if (was === "review") p.revDone++;
     }
+    answered++;
     reviewLog.push({ t: Date.now(), g: grade, deckId: deck.id, was });
     Store.saveLog(reviewLog);
     save();
@@ -818,6 +929,7 @@ function renderReview(deck, cram) {
       else if (lastAnswer.was === "review")
         p.revDone = Math.max(0, p.revDone - 1);
     }
+    answered = Math.max(0, answered - 1);
     reviewLog.pop();
     Store.saveLog(reviewLog);
     const restored = lastAnswer.card;
@@ -826,7 +938,26 @@ function renderReview(deck, cram) {
     showCard(restored);
   }
 
+  function showHelp() {
+    const ov = document.createElement("div");
+    ov.className = "kbd-overlay";
+    ov.innerHTML = `<div class="kbd-panel">
+      <h3>Shortcuts</h3>
+      <div class="kbd-row"><span>Reveal answer</span><b><kbd>Space</kbd> · tap</b></div>
+      <div class="kbd-row"><span>Grade</span><b><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd></b></div>
+      <div class="kbd-row"><span>Undo</span><b><kbd>U</kbd></b></div>
+      <div class="kbd-row"><span>Swipe</span><b>← again · → good · ↑ easy · ↓ hard</b></div>
+      <button class="btn secondary" id="closeHelp">Close</button>
+    </div>`;
+    ov.onclick = (e) => {
+      if (e.target === ov) ov.remove();
+    };
+    document.body.appendChild(ov);
+    ov.querySelector("#closeHelp").onclick = () => ov.remove();
+  }
+
   function wireTools(card) {
+    document.getElementById("helpBtn").onclick = showHelp;
     document.getElementById("undoBtn").onclick = undo;
     document.getElementById("suspendBtn").onclick = () => {
       card.suspended = true;
@@ -857,8 +988,9 @@ function fmtInterval(card, grade) {
 function annotateGrades(card, grades) {
   [0, 1, 2, 3].forEach((g) => {
     const btn = grades.querySelector(`[data-g="${g}"]`);
-    const label = btn.childNodes[0].textContent;
-    btn.innerHTML = `${label}<small>${fmtInterval(card, g)}</small>`;
+    const small = document.createElement("small");
+    small.textContent = fmtInterval(card, g);
+    btn.appendChild(small);
   });
 }
 
