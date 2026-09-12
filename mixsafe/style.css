@@ -1,0 +1,324 @@
+/* ============================================================
+   MixSafe — design & distribution
+   Same paper & ink palette as the index; the work itself is dark,
+   so every board sits on an inked plate rather than on the paper.
+   ============================================================ */
+
+:root {
+  --paper: #f4f0e6;
+  --paper-deep: #ece6d6;
+  --ink: #20201d;
+  --ink-soft: #5c594f;
+  --line: #c9c2af;
+  --accent: #b4502a;
+  --plate: #191917;
+  --serif: 'Fraunces', Georgia, serif;
+  --mono: 'IBM Plex Mono', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+body {
+  font-family: var(--serif);
+  font-size: 17px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection { background: var(--accent); color: var(--paper); }
+a { color: inherit; }
+
+/* faint paper grain, same as the index */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  opacity: 0.5;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.04 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: clamp(2rem, 5vw, 4.5rem) clamp(1.25rem, 4vw, 3.5rem) 5rem;
+}
+
+/* ===== shared mono label ===== */
+.kicker,
+.section-no,
+.back,
+.stat-label,
+.caption,
+.note-label {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* ===== masthead ===== */
+.back {
+  display: inline-block;
+  text-decoration: none;
+  color: var(--ink-soft);
+  margin-bottom: 3rem;
+  transition: color 0.18s ease;
+}
+.back:hover { color: var(--accent); }
+.back .arrow { color: var(--accent); margin-right: 0.5em; }
+
+.kicker { color: var(--ink-soft); margin: 0 0 1.5rem; }
+
+h1 {
+  margin: 0;
+  font-weight: 380;
+  font-size: clamp(2.6rem, 6vw, 4.6rem);
+  line-height: 1.0;
+  letter-spacing: -0.025em;
+  max-width: 15ch;
+}
+h1 em { font-style: italic; font-weight: 340; color: var(--accent); }
+
+.lede {
+  margin: 1.8rem 0 0;
+  font-size: clamp(1.15rem, 2vw, 1.45rem);
+  line-height: 1.45;
+  font-weight: 420;
+  letter-spacing: -0.01em;
+  max-width: 46ch;
+}
+
+.sub {
+  margin: 1.1rem 0 0;
+  color: var(--ink-soft);
+  max-width: 54ch;
+}
+
+/* ===== figures strip ===== */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  margin: 3.5rem 0 0;
+}
+
+.stat {
+  background: var(--paper-deep);
+  padding: 1.15rem 1.25rem;
+}
+
+.stat-num {
+  display: block;
+  font-size: 1.9rem;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.stat-label {
+  display: block;
+  margin-top: 0.4rem;
+  color: var(--ink-soft);
+}
+
+/* ===== sections ===== */
+.section { margin-top: clamp(4rem, 9vh, 6.5rem); }
+
+.section-no {
+  color: var(--accent);
+  margin: 0 0 0.9rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.section h2 {
+  margin: 0 0 0.6rem;
+  font-weight: 400;
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  letter-spacing: -0.02em;
+}
+
+.section-intro {
+  margin: 0 0 2.5rem;
+  color: var(--ink-soft);
+  max-width: 58ch;
+}
+
+/* ===== plates ===== */
+.grid {
+  display: grid;
+  gap: clamp(1rem, 2.2vw, 1.75rem);
+}
+.grid-flyers  { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.grid-stickers { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.grid-logo    { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+
+figure { margin: 0; }
+
+.plate {
+  display: block;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: var(--plate);
+  cursor: zoom-in;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  transition: transform 0.22s cubic-bezier(0.2, 0.7, 0.2, 1),
+              box-shadow 0.22s ease;
+}
+
+.plate img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* stickers are wildly different aspect ratios; centre each on a plate of one
+   height so the captions below them share a baseline */
+.grid-stickers .plate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 230px;
+  padding: 1rem;
+}
+
+.grid-stickers .plate img {
+  width: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.plate:hover,
+.plate:focus-visible {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px rgba(32, 32, 29, 0.16);
+  outline: none;
+}
+.plate:focus-visible { border-color: var(--accent); }
+
+.caption {
+  display: block;
+  margin-top: 0.7rem;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+.caption b {
+  display: block;
+  font-family: var(--serif);
+  font-size: 0.95rem;
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 500;
+  color: var(--ink);
+  margin-bottom: 0.15rem;
+}
+
+/* ===== identity row ===== */
+.grid-logo { align-items: start; }
+
+/* ===== process notes ===== */
+.notes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+}
+
+.note {
+  background: var(--paper-deep);
+  padding: 1.6rem 1.5rem;
+}
+
+.note-label { color: var(--accent); display: block; margin-bottom: 0.7rem; }
+.note p { margin: 0; color: var(--ink-soft); font-size: 0.95rem; }
+.note code {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  color: var(--ink);
+}
+
+/* ===== footer ===== */
+.foot {
+  margin-top: 5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.foot a { text-decoration: none; }
+.foot a:hover { color: var(--accent); }
+
+/* ===== lightbox ===== */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(18, 18, 16, 0.94);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(1rem, 4vw, 3rem);
+  cursor: zoom-out;
+}
+.lightbox[open-state="on"] { display: flex; }
+
+.lightbox img {
+  max-width: 100%;
+  max-height: 88vh;
+  width: auto;
+  height: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.lightbox-cap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: clamp(0.75rem, 2vw, 1.5rem);
+  text-align: center;
+  color: #cfcabb;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 0 1rem;
+}
+
+/* staggered reveal, same curve as the index */
+.reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+  animation-delay: calc(var(--d) * 110ms);
+}
+@keyframes rise { to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal { animation: none; opacity: 1; transform: none; }
+  .plate { transition: none; }
+}
+
+@media (max-width: 720px) {
+  .identity { grid-template-columns: 1fr; }
+  h1 { max-width: none; }
+}
